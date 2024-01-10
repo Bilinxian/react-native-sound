@@ -21,19 +21,19 @@
         [userInfo[@"AVAudioSessionInterruptionTypeKey"] longValue];
     AVAudioPlayer *player = [self playerForKey:self._key];
     if (audioSessionInterruptionType == AVAudioSessionInterruptionTypeEnded) {
-        if (player) {
+        if (player && player.isPlaying) {
             [player play];
             [self setOnPlay:YES forPlayerKey:self._key];
         }
     }
-    else if (audioSessionRouteChangeReason ==
+    if (audioSessionRouteChangeReason ==
         AVAudioSessionRouteChangeReasonOldDeviceUnavailable) {
         if (player) {
             [player pause];
             [self setOnPlay:NO forPlayerKey:self._key];
         }
     }
-    else if (audioSessionInterruptionType == AVAudioSessionInterruptionTypeBegan) {
+    if (audioSessionInterruptionType == AVAudioSessionInterruptionTypeBegan) {
         if (player) {
             [player pause];
             [self setOnPlay:NO forPlayerKey:self._key];
@@ -109,12 +109,14 @@ RCT_EXPORT_MODULE();
 }
 
 RCT_EXPORT_METHOD(enable : (BOOL)enabled) {
+    NSLog(@"enable");
     AVAudioSession *session = [AVAudioSession sharedInstance];
     [session setCategory:AVAudioSessionCategoryAmbient error:nil];
     [session setActive:enabled error:nil];
 }
 
 RCT_EXPORT_METHOD(setActive : (BOOL)active) {
+    NSLog(@"_setActive");
     AVAudioSession *session = [AVAudioSession sharedInstance];
     [session setActive:active error:nil];
 }
@@ -185,6 +187,7 @@ RCT_EXPORT_METHOD(setCategory
 }
 
 RCT_EXPORT_METHOD(enableInSilenceMode : (BOOL)enabled) {
+    NSLog(@"enableInSilenceMode");
     AVAudioSession *session = [AVAudioSession sharedInstance];
     [session setCategory:AVAudioSessionCategoryPlayback error:nil];
     [session setActive:enabled error:nil];
@@ -220,6 +223,8 @@ RCT_EXPORT_METHOD(prepare
             player.enableRate = YES;
             [player prepareToPlay];
             [[self playerPool] setObject:player forKey:key];
+            AVAudioSession *session = [AVAudioSession sharedInstance];
+            [session setActive:NO withOptions: AVAudioSessionSetActiveOptionNotifyOthersOnDeactivation error:nil];
             callback([NSArray
                 arrayWithObjects:[NSNull null],
                                  [NSDictionary
@@ -240,17 +245,16 @@ RCT_EXPORT_METHOD(prepare
 RCT_EXPORT_METHOD(play
                   : (nonnull NSNumber *)key withCallback
                   : (RCTResponseSenderBlock)callback) {
+    
     [[AVAudioSession sharedInstance] setActive:YES error:nil];
+    [[AVAudioSession sharedInstance] setCategory:AVAudioSessionCategoryPlayback
+                                     withOptions:AVAudioSessionCategoryOptionMixWithOthers |AVAudioSessionCategoryOptionAllowBluetooth
+                                           error:nil];
     [[NSNotificationCenter defaultCenter]
         addObserver:self
            selector:@selector(audioSessionChangeObserver:)
                name:AVAudioSessionRouteChangeNotification
-             object:[AVAudioSession sharedInstance]];
-    [[NSNotificationCenter defaultCenter]
-        addObserver:self
-           selector:@selector(audioSessionChangeObserver:)
-               name:AVAudioSessionInterruptionNotification
-             object:[AVAudioSession sharedInstance]];
+             object:nil];
     self._key = key;
     AVAudioPlayer *player = [self playerForKey:key];
     if (player) {
@@ -266,6 +270,8 @@ RCT_EXPORT_METHOD(pause
     AVAudioPlayer *player = [self playerForKey:key];
     if (player) {
         [player pause];
+        AVAudioSession *session = [AVAudioSession sharedInstance];
+        [session setActive:NO withOptions: AVAudioSessionSetActiveOptionNotifyOthersOnDeactivation error:nil];
         callback([NSArray array]);
     }
 }
@@ -277,6 +283,8 @@ RCT_EXPORT_METHOD(stop
     if (player) {
         [player stop];
         player.currentTime = 0;
+        AVAudioSession *session = [AVAudioSession sharedInstance];
+        [session setActive:NO withOptions: AVAudioSessionSetActiveOptionNotifyOthersOnDeactivation error:nil];
         callback([NSArray array]);
     }
 }
@@ -360,6 +368,7 @@ RCT_EXPORT_METHOD(getCurrentTime
 }
 
 RCT_EXPORT_METHOD(setSpeakerPhone : (BOOL)on) {
+    NSLog(@"setSpeakerPhone");
     AVAudioSession *session = [AVAudioSession sharedInstance];
     if (on) {
         [session overrideOutputAudioPort:AVAudioSessionPortOverrideSpeaker
