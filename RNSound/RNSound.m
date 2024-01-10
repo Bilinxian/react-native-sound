@@ -109,14 +109,14 @@ RCT_EXPORT_MODULE();
 }
 
 RCT_EXPORT_METHOD(enable : (BOOL)enabled) {
-    NSLog(@"enable");
+    
     AVAudioSession *session = [AVAudioSession sharedInstance];
     [session setCategory:AVAudioSessionCategoryAmbient error:nil];
     [session setActive:enabled error:nil];
 }
 
 RCT_EXPORT_METHOD(setActive : (BOOL)active) {
-    NSLog(@"_setActive");
+    
     AVAudioSession *session = [AVAudioSession sharedInstance];
     [session setActive:active error:nil];
 }
@@ -187,7 +187,7 @@ RCT_EXPORT_METHOD(setCategory
 }
 
 RCT_EXPORT_METHOD(enableInSilenceMode : (BOOL)enabled) {
-    NSLog(@"enableInSilenceMode");
+   
     AVAudioSession *session = [AVAudioSession sharedInstance];
     [session setCategory:AVAudioSessionCategoryPlayback error:nil];
     [session setActive:enabled error:nil];
@@ -368,7 +368,7 @@ RCT_EXPORT_METHOD(getCurrentTime
 }
 
 RCT_EXPORT_METHOD(setSpeakerPhone : (BOOL)on) {
-    NSLog(@"setSpeakerPhone");
+    
     AVAudioSession *session = [AVAudioSession sharedInstance];
     if (on) {
         [session overrideOutputAudioPort:AVAudioSessionPortOverrideSpeaker
