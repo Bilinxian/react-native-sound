@@ -109,14 +109,12 @@ RCT_EXPORT_MODULE();
 }
 
 RCT_EXPORT_METHOD(enable : (BOOL)enabled) {
-    
     AVAudioSession *session = [AVAudioSession sharedInstance];
     [session setCategory:AVAudioSessionCategoryAmbient error:nil];
     [session setActive:enabled error:nil];
 }
 
 RCT_EXPORT_METHOD(setActive : (BOOL)active) {
-    
     AVAudioSession *session = [AVAudioSession sharedInstance];
     [session setActive:active error:nil];
 }
@@ -187,11 +185,12 @@ RCT_EXPORT_METHOD(setCategory
 }
 
 RCT_EXPORT_METHOD(enableInSilenceMode : (BOOL)enabled) {
-   
     AVAudioSession *session = [AVAudioSession sharedInstance];
     [session setCategory:AVAudioSessionCategoryPlayback error:nil];
     [session setActive:enabled error:nil];
 }
+
+BOOL isTTS = NO;
 
 RCT_EXPORT_METHOD(prepare
                   : (NSString *)fileName withKey
@@ -215,16 +214,18 @@ RCT_EXPORT_METHOD(prepare
         fileNameUrl = [NSURL URLWithString:fileNameEscaped];
         player = [[AVAudioPlayer alloc] initWithContentsOfURL:fileNameUrl
                                                         error:&error];
+        
     }
-
+    
+    isTTS = ![fileName hasPrefix:@"file:///"];
     if (player) {
         @synchronized(self) {
             player.delegate = self;
             player.enableRate = YES;
             [player prepareToPlay];
             [[self playerPool] setObject:player forKey:key];
-            AVAudioSession *session = [AVAudioSession sharedInstance];
-            [session setActive:NO withOptions: AVAudioSessionSetActiveOptionNotifyOthersOnDeactivation error:nil];
+//            AVAudioSession *session = [AVAudioSession sharedInstance];
+//            [session setActive:NO withOptions: AVAudioSessionSetActiveOptionNotifyOthersOnDeactivation error:nil];
             callback([NSArray
                 arrayWithObjects:[NSNull null],
                                  [NSDictionary
@@ -245,21 +246,24 @@ RCT_EXPORT_METHOD(prepare
 RCT_EXPORT_METHOD(play
                   : (nonnull NSNumber *)key withCallback
                   : (RCTResponseSenderBlock)callback) {
-    
-    [[AVAudioSession sharedInstance] setActive:YES error:nil];
-    [[AVAudioSession sharedInstance] setCategory:AVAudioSessionCategoryPlayback
-                                     withOptions:AVAudioSessionCategoryOptionMixWithOthers |AVAudioSessionCategoryOptionAllowBluetooth
-                                           error:nil];
-    [[NSNotificationCenter defaultCenter]
-        addObserver:self
-           selector:@selector(audioSessionChangeObserver:)
-               name:AVAudioSessionRouteChangeNotification
-             object:nil];
     self._key = key;
     AVAudioPlayer *player = [self playerForKey:key];
     if (player) {
+       
         [[self callbackPool] setObject:[callback copy] forKey:key];
         [player play];
+         [[AVAudioSession sharedInstance] setActive:YES  error:nil];
+         [[AVAudioSession sharedInstance] setMode:AVAudioSessionModeDefault error:nil];
+        if(isTTS){
+            [[AVAudioSession sharedInstance] setCategory:AVAudioSessionCategoryPlayback
+                                             withOptions:AVAudioSessionCategoryOptionDuckOthers
+                                                   error:nil];
+        }
+        else{
+            [[AVAudioSession sharedInstance] setCategory:AVAudioSessionCategoryPlayback
+                                             withOptions:AVAudioSessionCategoryOptionMixWithOthers
+                                                   error:nil];
+        }
         [self setOnPlay:YES forPlayerKey:key];
     }
 }
@@ -270,8 +274,10 @@ RCT_EXPORT_METHOD(pause
     AVAudioPlayer *player = [self playerForKey:key];
     if (player) {
         [player pause];
-        AVAudioSession *session = [AVAudioSession sharedInstance];
-        [session setActive:NO withOptions: AVAudioSessionSetActiveOptionNotifyOthersOnDeactivation error:nil];
+        if([_playerPool count] == 1){
+            AVAudioSession *session = [AVAudioSession sharedInstance];
+            [session setActive:NO withOptions: AVAudioSessionSetActiveOptionNotifyOthersOnDeactivation error:nil];
+        }
         callback([NSArray array]);
     }
 }
@@ -283,8 +289,6 @@ RCT_EXPORT_METHOD(stop
     if (player) {
         [player stop];
         player.currentTime = 0;
-        AVAudioSession *session = [AVAudioSession sharedInstance];
-        [session setActive:NO withOptions: AVAudioSessionSetActiveOptionNotifyOthersOnDeactivation error:nil];
         callback([NSArray array]);
     }
 }
@@ -296,6 +300,14 @@ RCT_EXPORT_METHOD(release : (nonnull NSNumber *)key) {
             [player stop];
             [[self callbackPool] removeObjectForKey:key];
             [[self playerPool] removeObjectForKey:key];
+            if([_playerPool count] == 0){
+                AVAudioSession *session = [AVAudioSession sharedInstance];
+                [session setActive:NO withOptions: AVAudioSessionSetActiveOptionNotifyOthersOnDeactivation error:nil];
+            }else{
+                [[AVAudioSession sharedInstance] setCategory:AVAudioSessionCategoryPlayback
+                                                 withOptions:AVAudioSessionCategoryOptionMixWithOthers
+                                                       error:nil];
+            }
             NSNotificationCenter *notificationCenter =
                 [NSNotificationCenter defaultCenter];
             [notificationCenter removeObserver:self];
@@ -368,7 +380,6 @@ RCT_EXPORT_METHOD(getCurrentTime
 }
 
 RCT_EXPORT_METHOD(setSpeakerPhone : (BOOL)on) {
-    
     AVAudioSession *session = [AVAudioSession sharedInstance];
     if (on) {
         [session overrideOutputAudioPort:AVAudioSessionPortOverrideSpeaker
@@ -392,4 +403,13 @@ RCT_EXPORT_METHOD(setSpeakerPhone : (BOOL)on) {
                                       numberWithBool:isPlaying ? YES : NO],
                                   @"isPlaying", playerKey, @"playerKey", nil]];
 }
+
+- (id)init {
+    self = [super init];
+    NSNotificationCenter *defaultCenter = [NSNotificationCenter defaultCenter];
+    [defaultCenter removeObserver:self];
+    [defaultCenter addObserver:self selector:@selector(audioSessionChangeObserver:) name:AVAudioSessionRouteChangeNotification object:nil];
+  return self;
+}
+
 @end
