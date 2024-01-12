@@ -12,6 +12,10 @@
     NSMutableDictionary *_TTSPool;
 }
 
+NSString *_isTTS = @"1";
+NSString *_notTTS = @"0";
+
+
 @synthesize _key = _key;
 
 - (void)audioSessionChangeObserver:(NSNotification *)notification {
@@ -222,14 +226,14 @@ RCT_EXPORT_METHOD(prepare
 
     }
 
-   BOOL isTTS = ![fileName hasPrefix:@"file:///"];
+    BOOL isTTS = ![fileName hasPrefix:@"file:///"];
     if (player) {
         @synchronized(self) {
             player.delegate = self;
             player.enableRate = YES;
             [player prepareToPlay];
             [[self playerPool] setObject:player forKey:key];
-            [[self TTSPool] setValue:isTTS?@"1":@"0" forKey:[key stringValue]];
+            [[self TTSPool] setValue:isTTS?_isTTS:_notTTS forKey:[key stringValue]];
 //            [self resumeOtherApp];
             callback([NSArray
                 arrayWithObjects:[NSNull null],
@@ -261,7 +265,7 @@ RCT_EXPORT_METHOD(play
         AVAudioSession *session = [AVAudioSession sharedInstance];
 //         [session setActive:YES  error:nil];
 //         [session setMode:AVAudioSessionModeDefault error:nil];
-        if([isTTS isEqual:@"1"]){
+        if([isTTS isEqual:_isTTS]){
             [session setCategory:AVAudioSessionCategoryPlayback
                      withOptions:AVAudioSessionCategoryOptionDuckOthers
                            error:nil];
